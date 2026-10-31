@@ -26,3 +26,32 @@ resource "aws_subnet" "public_a" {
         Tier = "public"
     }
 }
+
+
+
+# create the second public subnet in a different AZ 
+resource "aws_subnet" "public_b" {
+    # associante our subnet with our sxisting VPC
+    vpc_id = aws_vpc.main.id 
+
+    # generate the second /24 subnet from our VPC CIDR
+    # the index 2 produces 10.0.2.0/24
+    cidr_block = cidrsubnet(var.vpc_cidr, 8, 2)
+
+    # place this subnet in the second AZ
+    availability_zone = "us-east-2b"
+
+    # automatically assigns a public IPv4 address to 
+    # eligible network interfaces launched in this subnet
+    map_public_ip_on_launch = true
+
+    tags = {
+        Name = "aws-infraestructure-platform-public-dev-b"
+        Environment = "dev"
+        ManagedBy = "Terraform"
+        Tier = "public"
+    
+    }
+}
+
+
