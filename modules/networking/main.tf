@@ -35,3 +35,23 @@ resource "aws_internet_gateway" "main" {
     ManagedBy   = "Terraform"
   }
 }
+
+
+# create a dedicated route table for public subnets
+# A route table contains rules that determine where network traffic goes.
+
+#Our VPC already has a main route table, automatically created by AWS
+#. We're creating a separate one because we want explicit control over public subnet traffic.
+resource "aws_route_table" "public" {
+
+  # associate this route table with our VPC 
+  vpc_id = aws_vpc.main.id
+
+  # identify this route table in aws
+  tags = {
+    Name = "aws-infrastructure-platform-public-dev-rt"
+    Environment = "dev"
+    ManagedBy = "Terraform"
+    Tier = "public"
+  }
+}
