@@ -127,3 +127,27 @@ resource "aws_subnet" "database_a" {
         Tier        = "database"
   }
 }
+
+# Create the second database subnet in Availability Zone B.
+resource "aws_subnet" "database_b" {
+  # Place this subnet inside our existing VPC.
+  vpc_id = aws_vpc.main.id
+
+  # Generate 10.0.22.0/24 from the VPC CIDR.
+  cidr_block = cidrsubnet(var.vpc_cidr, 8, 22)
+
+  # Place the subnet in the second Availability Zone.
+  availability_zone = "us-east-2b"
+
+  # Do not automatically assign public IPv4 addresses.
+  map_public_ip_on_launch = false
+
+  # Identify this subnet as part of the database tier.
+  tags = {
+    Name        = "aws-infrastructure-platform-database-dev-b"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+    Tier        = "database"
+  }
+}
+
