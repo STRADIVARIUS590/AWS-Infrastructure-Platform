@@ -1,0 +1,7 @@
+Subnet	Availability Zone	CIDR	Purpose
+public-a	us-east-2a	10.0.1.0/24	Load balancer
+public-b	us-east-2b	10.0.2.0/24	Load balancer
+private-a	us-east-2a	10.0.11.0/24	Application servers
+private-b	us-east-2b	10.0.12.0/24	Application servers
+database-a	us-east-2a	10.0.21.0/24	Database
+database-b	us-east-2b	10.0.22.0/24	Database
