@@ -46,7 +46,7 @@ resource "aws_subnet" "public_b" {
     map_public_ip_on_launch = true
 
     tags = {
-        Name = "aws-infraestructure-platform-public-dev-b"
+        Name = "aws-infrastructure-platform-public-dev-b"
         Environment = "dev"
         ManagedBy = "Terraform"
         Tier = "public"
@@ -80,6 +80,28 @@ resource "aws_subnet" "private_a" {
         Environment = "dev"
         ManagedBy = "Terraform"
         Tier = "private"
+    }
+}
+
+# Create the second private subnet in Availability Zone B.
+resource "aws_subnet" "private_b" {
+  # Place this subnet inside our main VPC.
+  vpc_id = aws_vpc.main.id
+
+  # Allocate the 10.0.12.0/24 address range.
+  cidr_block = cidrsubnet(var.vpc_cidr, 8, 12)
+
+  # Place the subnet in the second Availability Zone.
+  availability_zone = "us-east-2b"
+
+  # Do not automatically assign public IPv4 addresses.
+  map_public_ip_on_launch = false
+
+    tags = {
+    Name        = "aws-infrastructure-platform-private-dev-b"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+    Tier        = "private"
     }
 }
 
