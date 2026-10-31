@@ -18,3 +18,20 @@ resource "aws_vpc" "main" {
     ManagedBy   = "Terraform"
   }
 }
+
+# Think of it as the connection point between your VPC and the public internet.
+
+# However, attaching an IGW does not automatically give your subnets internet access.
+# create itnernet gateway for our VPC
+resource "aws_internet_gateway" "main" {
+  # attach our current gateway to our existing VPC
+  # terrafor infers the dependency from the reference
+  vpc_id = aws_vpc.main.id
+
+   # Identify this resource in AWS.
+  tags = {
+    Name        = "aws-infrastructure-platform-dev-igw"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+  }
+}
