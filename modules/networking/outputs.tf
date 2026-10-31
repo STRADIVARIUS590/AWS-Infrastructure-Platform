@@ -7,7 +7,7 @@ output "vpc_id" {
 # Expose the IPv4 CIDR assigned to the VPC
 output "vpc_cidr_block" {
     description = "IPv4 CIDR block of the main VPC"
-    value = aws.vpc.main.cidr_block
+    value = aws_vpc.main.cidr_block
 }
 
 # expose the ID of the VPC's main route table
