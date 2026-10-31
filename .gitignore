@@ -1,0 +1,16 @@
+.terraform/
+# terraform.lock.hcl # normalment conviene versionalo para mantener reproducibles las versiones de los providers, por klo uqe no va en el gitignore
+
+
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+
+crash.log
+crash.*.log
+
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
