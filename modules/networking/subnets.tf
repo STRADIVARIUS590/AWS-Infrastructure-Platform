@@ -55,3 +55,32 @@ resource "aws_subnet" "public_b" {
 }
 
 
+
+
+############PRIVATE SUBNETS###############
+
+# create our first private subnet for backend workloads
+resource "aws_subnet" "private_a" {
+    vpc_id = aws_vpc.main.id
+
+    # generate the 10.0.11.0/24 cidr block
+    cidr_block = cidrsubnet(var.vpc_cidr, 8, 11)
+
+    # place the subnet in the first availability zone
+    availability_zone = "us-east-2a"
+
+    #  do not automatically assign the public IPv4 address
+    
+    map_public_ip_on_launch = false # this doesn't, by itself, make a subnet private. We'll establish its private status through routing configuration later.
+
+    # identify this subnet as private
+
+    tags = {
+        Name = "aws-infrastructure-platform-private-dev-a"
+        Environment = "dev"
+        ManagedBy = "Terraform"
+        Tier = "private"
+    }
+}
+
+
