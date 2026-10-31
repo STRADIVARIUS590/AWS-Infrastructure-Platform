@@ -98,11 +98,32 @@ resource "aws_subnet" "private_b" {
   map_public_ip_on_launch = false
 
     tags = {
-    Name        = "aws-infrastructure-platform-private-dev-b"
-    Environment = "dev"
-    ManagedBy   = "Terraform"
-    Tier        = "private"
+        Name        = "aws-infrastructure-platform-private-dev-b"
+        Environment = "dev"
+        ManagedBy   = "Terraform"
+        Tier        = "private"
     }
 }
 
 
+###########DATABASE SUBNETS###############
+# create the first database subnet in Availability zone A
+resource "aws_subnet" "database_a" {
+    vpc_id = aws_vpc.main.id
+
+    # generate 10.0.21.0/24 from the VPC CIDR
+    cidr_block = cidrsubnet(var.vpc_cidr, 8, 21)
+
+    # place the subnet in the first availability zone
+    availability_zone = "us-east-2a"
+
+    map_public_ip_on_launch = false
+
+      # Identify this subnet as part of the database tier.
+    tags = {
+        Name        = "aws-infrastructure-platform-database-dev-a"
+        Environment = "dev"
+        ManagedBy   = "Terraform"
+        Tier        = "database"
+  }
+}

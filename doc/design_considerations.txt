@@ -1,0 +1,9 @@
+
+
+# Why a separate database subnet?
+# We're separating application workloads from database workloads.
+
+# Our intended architecture:
+# - Public subnets: Load balancers and internet-facing resources.
+# - Private subnets: Backend applications.
+# - Database subnets: RDS and other database resources.
