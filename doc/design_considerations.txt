@@ -7,3 +7,6 @@
 # - Public subnets: Load balancers and internet-facing resources.
 # - Private subnets: Backend applications.
 # - Database subnets: RDS and other database resources.
+
+
+Associating a dedicated table is a future design step for controlling database connectivity independently of application workloads. Route-table separation alone does not prevent access from other VPC subnets; security groups and network ACLs will be needed to enforce that boundary.
