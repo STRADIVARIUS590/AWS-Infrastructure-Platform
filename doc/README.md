@@ -30,7 +30,7 @@ flowchart LR
         ModuleInstance["Instancia module.networking"]
         ModuleVars["variables.tf<br/>vpc_cidr y validación CIDR"]
         Network["main.tf<br/>VPC, Internet Gateway,<br/>tabla y ruta pública"]
-        Subnets["subnets.tf<br/>6 subredes y asociación declarada"]
+        Subnets["subnets.tf<br/>6 subredes y asociaciones de rutas públicas"]
         ModuleOutputs["outputs.tf<br/>ID, CIDR y tabla principal"]
 
         ModuleInstance -->|"entrada del módulo"| ModuleVars
@@ -51,20 +51,20 @@ flowchart LR
 ```mermaid
 flowchart TB
     Dev["Entorno Terraform: environments/dev"]
-    Module["Modulo networking"]
+    Module["Módulo networking"]
     VPC["VPC principal<br/>10.0.0.0/16"]
     IGW["Internet Gateway"]
-    PublicRT["Tabla de rutas publicas"]
+    PublicRT["Tabla de rutas públicas"]
     DefaultRoute["Ruta 0.0.0.0/0"]
 
     subgraph AZA["us-east-2a"]
-        PubA["Subred publica A<br/>10.0.1.0/24"]
+        PubA["Subred pública A<br/>10.0.1.0/24"]
         PrivA["Subred privada A<br/>10.0.11.0/24"]
         DBA["Subred de base de datos A<br/>10.0.21.0/24"]
     end
 
     subgraph AZB["us-east-2b"]
-        PubB["Subred publica B<br/>10.0.2.0/24"]
+        PubB["Subred pública B<br/>10.0.2.0/24"]
         PrivB["Subred privada B<br/>10.0.12.0/24"]
         DBB["Subred de base de datos B<br/>10.0.22.0/24"]
     end
@@ -81,20 +81,21 @@ flowchart TB
     VPC -->|"asociada a la VPC"| PublicRT
     PublicRT -->|"incluye"| DefaultRoute
     DefaultRoute -->|"destino"| IGW
-    PublicRT -.->|"asociación declarada; corregir subnet_id"| PubA
+    PublicRT -.->|"asociación public_a"| PubA
+    PublicRT -.->|"asociación public_b"| PubB
 ```
 
-La asociación dibujada entre la tabla pública y `public-a` está declarada en Terraform, pero `subnet_id` recibe el objeto de subred en vez de su identificador. Debe referenciar `aws_subnet.public_a.id` para que la configuración sea válida. Además, no hay una asociación declarada para `public-b`.
+Ambas asociaciones públicas están declaradas en `subnets.tf` y utilizan los IDs de las subredes correspondientes. La tabla pública envía la ruta predeterminada al Internet Gateway.
 
 ## Recursos y relaciones
 
-| Recurso | Configuracion | Relacion y funcion |
+| Recurso | Configuración | Relación y función |
 |---|---|---|
 | VPC `aws_vpc.main` | `10.0.0.0/16`; compatibilidad DNS y nombres DNS habilitados | Contenedor de las seis subredes; es la VPC a la que se adjunta el Internet Gateway y a la que pertenece la tabla pública. |
 | Internet Gateway `aws_internet_gateway.main` | Asociado a la VPC principal | Proporciona el destino para tráfico IPv4 hacia Internet cuando una tabla de rutas asociada tiene una ruta a este gateway. |
-| Tabla `aws_route_table.public` | Tabla adicional asociada a la VPC | Contiene la ruta por defecto para tráfico IPv4; requiere asociaciones explícitas con las subredes que deban usarla. |
+| Tabla `aws_route_table.public` | Tabla adicional asociada a la VPC | Contiene la ruta por defecto para tráfico IPv4; está asociada explícitamente a las dos subredes públicas. |
 | Ruta `aws_route.public_internet` | Destino `0.0.0.0/0`, gateway de destino `aws_internet_gateway.main` | Envía el tráfico IPv4 que no coincide con rutas más específicas al Internet Gateway. |
-| Subredes públicas A y B | `10.0.1.0/24` en `us-east-2a`; `10.0.2.0/24` en `us-east-2b`; asignación automática de IP pública habilitada | Segmentos previstos para recursos públicos, como balanceadores. La asignación de IP pública por sí sola no proporciona conectividad a Internet. |
+| Subredes públicas A y B | `10.0.1.0/24` en `us-east-2a`; `10.0.2.0/24` en `us-east-2b`; asignación automática de IP pública habilitada | Asociadas a la tabla pública, que enruta `0.0.0.0/0` al Internet Gateway. Segmentos previstos para recursos públicos, como balanceadores. |
 | Subredes privadas A y B | `10.0.11.0/24` en `us-east-2a`; `10.0.12.0/24` en `us-east-2b`; asignación automática de IP pública deshabilitada | Segmentos previstos para cargas de aplicación. No se declaran asociaciones de tabla de rutas privadas ni NAT Gateway. |
 | Subredes de base de datos A y B | `10.0.21.0/24` en `us-east-2a`; `10.0.22.0/24` en `us-east-2b`; asignación automática de IP pública deshabilitada | Segmentos previstos para datos. No se declaran asociaciones de tabla de rutas dedicadas ni recursos de base de datos. |
 
@@ -104,9 +105,9 @@ Las subredes se crean con `cidrsubnet(var.vpc_cidr, 8, índice)`, por lo que sus
 
 1. Los recursos dentro de la VPC se comunican mediante las rutas locales de la VPC.
 2. Para que una subred tenga salida IPv4 a Internet a través del gateway, su tabla de rutas efectiva debe incluir `0.0.0.0/0` hacia el Internet Gateway.
-3. La configuración define esa ruta en `aws_route_table.public`, pero solo declara una asociación: la de `public-a`, actualmente con un valor incorrecto en `subnet_id`.
-4. `public-b` no está asociada a la tabla pública. Las subredes sin asociación explícita usan la tabla de rutas principal de la VPC. En esta configuración no se agregan rutas a Internet a esa tabla ni rutas privadas mediante NAT; por tanto, no se debe asumir que esas subredes tengan salida a Internet.
-5. Habilitar la asignación automática de IP pública en una subred no crea una ruta hacia Internet ni reemplaza la asociación de tabla de rutas.
+3. La tabla `aws_route_table.public` incluye `0.0.0.0/0` hacia el Internet Gateway y está asociada a `public-a` y `public-b`. Esas subredes también habilitan la asignación automática de direcciones IPv4 públicas.
+4. Las subredes privadas y de base de datos no tienen asociaciones explícitas en el módulo, por lo que usan la tabla de rutas principal de la VPC. No se declaran rutas a Internet en esa tabla ni rutas privadas mediante NAT; no se debe asumir que estas subredes tengan salida a Internet.
+5. La asignación automática de IP pública no crea rutas; el acceso a Internet de las subredes públicas depende de la asociación con la tabla que enruta al Internet Gateway.
 
 ## Módulo y entorno
 
@@ -124,7 +125,7 @@ Las subredes se crean con `cidrsubnet(var.vpc_cidr, 8, índice)`, por lo que sus
 - [Proveedor AWS](../environments/dev/providers.tf): versión de Terraform/proveedor, región y perfil.
 - [Variables](../environments/dev/variables.tf): parámetros configurables del entorno.
 - [Módulo de red](../modules/networking/main.tf): VPC, Internet Gateway y rutas.
-- [Subredes](../modules/networking/subnets.tf): rangos, zonas de disponibilidad y asociación de ruta declarada.
+- [Subredes](../modules/networking/subnets.tf): rangos, zonas de disponibilidad y asociaciones de las dos subredes públicas a la tabla de rutas.
 - [Consideraciones de diseño](./design_considerations.txt): propósito previsto de las capas de subredes.
 - [Mapa de subredes](./subnet_map.txt): resumen de CIDR y uso previsto.
 
@@ -138,4 +139,4 @@ terraform validate
 terraform plan
 ```
 
-La asociación de `public-a` necesita usar `aws_subnet.public_a.id` en `subnet_id`. Para que ambas subredes públicas utilicen la ruta al Internet Gateway, también se necesita declarar la asociación de `public-b`. Cualquier aislamiento de las subredes privadas o de datos requiere definir y asociar las tablas/rutas correspondientes; no forma parte de la configuración descrita aquí.
+Las subredes públicas A y B están asociadas a la tabla pública. Las subredes privadas y de base de datos usan la tabla principal de la VPC; cualquier aislamiento o salida mediante NAT requiere definir y asociar las tablas y rutas correspondientes, lo cual no forma parte de la configuración descrita aquí.

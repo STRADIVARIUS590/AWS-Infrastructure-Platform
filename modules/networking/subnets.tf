@@ -160,3 +160,12 @@ resource "aws_route_table_association" "public_a" {
     # assign the public route table to this subnet
     route_table_id = aws_route_table.public.id
 }
+
+# assiciate the public B with the public route table
+resource "aws_route_table_association" "public_b" {
+    # identify the second public subnet 
+    subnet_id = aws_subnet.public_b.id
+
+    # assigne the same public route as public A
+    route_table_id = aws_route_table.public.id
+}
