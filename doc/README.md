@@ -30,7 +30,7 @@ flowchart LR
         ModuleInstance["Instancia module.networking"]
         ModuleVars["variables.tf<br/>vpc_cidr y validación CIDR"]
         Network["main.tf<br/>VPC, Internet Gateway,<br/>tablas pública, privada<br/>y de base de datos"]
-        Subnets["subnets.tf<br/>6 subredes; asociaciones<br/>públicas, privadas y database_a"]
+        Subnets["subnets.tf<br/>6 subredes; asociaciones<br/>públicas, privadas y de base de datos"]
         ModuleOutputs["outputs.tf<br/>ID, CIDR y tabla principal"]
 
         ModuleInstance -->|"entrada del módulo"| ModuleVars
@@ -85,7 +85,6 @@ flowchart TB
     VPC -->|"asociada a la VPC"| PublicRT
     VPC -->|"asociada a la VPC"| PrivateRT
     VPC -->|"asociada a la VPC"| DatabaseRT
-    MainRT -.->|"asociación predeterminada"| DBB
     PublicRT -->|"incluye"| DefaultRoute
     DefaultRoute -->|"destino"| IGW
     PublicRT -.->|"asociación public_a"| PubA
@@ -93,6 +92,7 @@ flowchart TB
     PrivateRT -.->|"asociación private_a"| PrivA
     PrivateRT -.->|"asociación private_b"| PrivB
     DatabaseRT -.->|"asociación database_a"| DBA
+    DatabaseRT -.->|"asociación database_b"| DBB
 ```
 
 Ambas asociaciones públicas están declaradas en `subnets.tf` y utilizan los IDs de las subredes correspondientes. La tabla pública envía la ruta predeterminada al Internet Gateway.
@@ -103,14 +103,14 @@ Ambas asociaciones públicas están declaradas en `subnets.tf` y utilizan los ID
 |---|---|---|
 | VPC `aws_vpc.main` | `10.0.0.0/16`; compatibilidad DNS y nombres DNS habilitados | Contenedor de las seis subredes; es la VPC a la que se adjunta el Internet Gateway y a la que pertenece la tabla pública. |
 | Internet Gateway `aws_internet_gateway.main` | Asociado a la VPC principal | Proporciona el destino para tráfico IPv4 hacia Internet cuando una tabla de rutas asociada tiene una ruta a este gateway. |
-| Tabla principal de rutas | Creada automáticamente al crear la VPC; su ID se expone como output | Se aplica por defecto a las subredes sin asociación explícita, como `database-b`. El módulo no agrega una ruta de Internet a esta tabla. |
+| Tabla principal de rutas | Creada automáticamente al crear la VPC; su ID se expone como output | Se aplica por defecto a las subredes que no tienen una asociación explícita. El módulo no agrega una ruta de Internet a esta tabla. |
 | Tabla `aws_route_table.public` | Tabla adicional asociada a la VPC | Contiene la ruta por defecto para tráfico IPv4; está asociada explícitamente a las dos subredes públicas. |
 | Tabla `aws_route_table.private` | Tabla adicional asociada a la VPC; etiqueta `Name = "aws-infrastructure-platform-private-dev-rt"` y tier `private` | Está asociada explícitamente a `private-a` y `private-b`. No tiene rutas declaradas aparte de la ruta local implícita de la VPC; no proporciona salida a Internet. |
-| Tabla `aws_route_table.database` | Tabla adicional asociada a la VPC; etiqueta `Name = "aws-infrastructure-platform-database-dev-rt"` y tier `database` | Está asociada explícitamente a `database-a`. No tiene rutas declaradas aparte de la ruta local implícita de la VPC; `database-b` continúa usando la tabla principal de la VPC. |
+| Tabla `aws_route_table.database` | Tabla adicional asociada a la VPC; etiqueta `Name = "aws-infrastructure-platform-database-dev-rt"` y tier `database` | Está asociada explícitamente a `database-a` y `database-b`. No tiene rutas declaradas aparte de la ruta local implícita de la VPC; no proporciona salida a Internet. |
 | Ruta `aws_route.public_internet` | Destino `0.0.0.0/0`, gateway de destino `aws_internet_gateway.main` | Envía el tráfico IPv4 que no coincide con rutas más específicas al Internet Gateway. |
 | Subredes públicas A y B | `10.0.1.0/24` en `us-east-2a`; `10.0.2.0/24` en `us-east-2b`; asignación automática de IP pública habilitada | Asociadas a la tabla pública, que enruta `0.0.0.0/0` al Internet Gateway. Segmentos previstos para recursos públicos, como balanceadores. |
 | Subredes privadas A y B | `10.0.11.0/24` en `us-east-2a`; `10.0.12.0/24` en `us-east-2b`; asignación automática de IP pública deshabilitada | Segmentos previstos para cargas de aplicación. Ambas usan la tabla privada. No se declara NAT Gateway. |
-| Subredes de base de datos A y B | `10.0.21.0/24` en `us-east-2a`; `10.0.22.0/24` en `us-east-2b`; asignación automática de IP pública deshabilitada | Segmentos previstos para datos. `database-a` usa la tabla de base de datos y `database-b` usa la tabla principal de la VPC. No se declaran recursos de base de datos. |
+| Subredes de base de datos A y B | `10.0.21.0/24` en `us-east-2a`; `10.0.22.0/24` en `us-east-2b`; asignación automática de IP pública deshabilitada | Segmentos previstos para datos. Ambas están asociadas a la tabla de base de datos. No se declaran recursos de base de datos. |
 
 Las subredes se crean con `cidrsubnet(var.vpc_cidr, 8, índice)`, por lo que sus rangos se derivan del CIDR configurable de la VPC. Los rangos de la tabla corresponden al valor predeterminado `10.0.0.0/16`.
 
@@ -119,7 +119,7 @@ Las subredes se crean con `cidrsubnet(var.vpc_cidr, 8, índice)`, por lo que sus
 1. Los recursos dentro de la VPC se comunican mediante las rutas locales de la VPC.
 2. Para que una subred tenga salida IPv4 a Internet a través del gateway, su tabla de rutas efectiva debe incluir `0.0.0.0/0` hacia el Internet Gateway.
 3. La tabla `aws_route_table.public` incluye `0.0.0.0/0` hacia el Internet Gateway y está asociada a `public-a` y `public-b`. Esas subredes también habilitan la asignación automática de direcciones IPv4 públicas.
-4. `private-a` y `private-b` están asociadas a `aws_route_table.private`, que no tiene rutas declaradas aparte de la ruta local implícita; por ello, no tienen ruta de salida a Internet. `database-a` está asociada a `aws_route_table.database`, también sin rutas de salida declaradas; `database-b` usa la tabla principal de la VPC. No se declara NAT Gateway ni salida a Internet para estas subredes.
+4. `private-a` y `private-b` están asociadas a `aws_route_table.private`, que no tiene rutas declaradas aparte de la ruta local implícita; por ello, no tienen ruta de salida a Internet. Ambas subredes de base de datos están asociadas a `aws_route_table.database`, también sin rutas de salida declaradas. No se declara NAT Gateway ni salida a Internet para estas subredes.
 5. La asignación automática de IP pública no crea rutas; el acceso a Internet de las subredes públicas depende de la asociación con la tabla que enruta al Internet Gateway.
 
 ## Módulo y entorno
@@ -138,7 +138,7 @@ Las subredes se crean con `cidrsubnet(var.vpc_cidr, 8, índice)`, por lo que sus
 - [Proveedor AWS](../environments/dev/providers.tf): versión de Terraform/proveedor, región y perfil.
 - [Variables](../environments/dev/variables.tf): parámetros configurables del entorno.
 - [Módulo de red](../modules/networking/main.tf): VPC, Internet Gateway y tablas de rutas pública, privada y de base de datos.
-- [Subredes](../modules/networking/subnets.tf): rangos, zonas de disponibilidad y asociaciones de las subredes públicas, privadas y `database-a` a sus tablas de rutas.
+- [Subredes](../modules/networking/subnets.tf): rangos, zonas de disponibilidad y asociaciones de las subredes públicas, privadas y de base de datos a sus tablas de rutas.
 - [Consideraciones de diseño](./design_considerations.txt): propósito previsto de las capas de subredes.
 - [Mapa de subredes](./subnet_map.txt): resumen de CIDR y uso previsto.
 
@@ -152,4 +152,4 @@ terraform validate
 terraform plan
 ```
 
-Las subredes públicas A y B están asociadas a la tabla pública, las subredes privadas A y B a la tabla privada, y `database-a` a la tabla de base de datos. `database-b` usa la tabla principal de la VPC. Las tablas privada y de base de datos no tienen rutas de salida; cualquier salida mediante NAT requiere definir los recursos y rutas correspondientes, lo cual no forma parte de la configuración descrita aquí.
+Las subredes públicas A y B están asociadas a la tabla pública, las subredes privadas A y B a la tabla privada, y las subredes de base de datos A y B a la tabla de base de datos. Las tablas privada y de base de datos no tienen rutas de salida; cualquier salida mediante NAT requiere definir los recursos y rutas correspondientes, lo cual no forma parte de la configuración descrita aquí.
