@@ -180,3 +180,14 @@ resource "aws_route_table_association" "private_a" {
     # assign the dedicated private route table
     route_table_id = aws_route_table.private.id
 }
+
+# associate provate B with the private route table
+resource "aws_route_table_association" "private_b" {
+
+    # identify the second private subnet 
+    subnet_id = aws_subnet.private_b.id
+
+    # assign the dedicated private route table
+    route_table_id = aws_route_table.private.id
+
+}
