@@ -151,3 +151,12 @@ resource "aws_subnet" "database_b" {
   }
 }
 
+
+# associate the public A with the public route table
+resource "aws_route_table_association" "public_a" {
+    # identify the subnet to assiciate
+    subnet_id = aws_subnet.public_a.id
+
+    # assign the public route table to this subnet
+    route_table_id = aws_route_table.public.id
+}
