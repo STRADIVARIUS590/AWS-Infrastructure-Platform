@@ -69,4 +69,24 @@ resource "aws_route" "public_internet" {
 }
 
 
+# provivate route table for private subnets
+
+# Why do we need a separate route table?
+# Our public route table contains:
+# 0.0.0.0/0 → Internet Gateway
+
+
+# We don't want our backend subnets to inherit that direct internet route.
+resource "aws_route_table" "private" {
+  # associate this route table with our existing VPC 
+  vpc_id = aws_vpc.main.id
+
+  # Identify this route table in AWS.
+  tags = {
+    Name        = "aws-infrastructure-platform-private-dev-rt"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+    Tier        = "private"
+  }
+}
 
