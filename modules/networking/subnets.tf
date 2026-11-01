@@ -169,3 +169,14 @@ resource "aws_route_table_association" "public_b" {
     # assigne the same public route as public A
     route_table_id = aws_route_table.public.id
 }
+
+
+# associate private A with the private route table
+resource "aws_route_table_association" "private_a" {
+
+    # identify the first private subnet
+    subnet_id = aws_subnet.private_a.id
+
+    # assign the dedicated private route table
+    route_table_id = aws_route_table.private.id
+}
