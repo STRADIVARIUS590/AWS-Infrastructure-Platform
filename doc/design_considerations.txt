@@ -9,4 +9,4 @@
 # - Database subnets: RDS and other database resources.
 
 
-Associating a dedicated table is a future design step for controlling database connectivity independently of application workloads. Route-table separation alone does not prevent access from other VPC subnets; security groups and network ACLs will be needed to enforce that boundary.
+The first database subnet is associated with the dedicated database route table; the second database subnet still uses the VPC main route table. Associating the second subnet is a remaining step for consistent database routing across both Availability Zones. Route-table separation alone does not prevent access from other VPC subnets; security groups and network ACLs will be needed to enforce that boundary.

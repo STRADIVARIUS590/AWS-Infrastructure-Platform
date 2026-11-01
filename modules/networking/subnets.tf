@@ -191,3 +191,11 @@ resource "aws_route_table_association" "private_b" {
     route_table_id = aws_route_table.private.id
 
 }
+# Associate Database A with Database route table
+resource "aws_route_table_association" "database_a" {
+    # identify the first database subnet
+    subnet_id = aws_subnet.database_a.id
+
+    # assign the dedicated databas route table
+    route_table_id = aws_route_table.database.id
+}
