@@ -55,3 +55,18 @@ resource "aws_route_table" "public" {
     Tier = "public"
   }
 }
+
+# Route public sibnet internet-bound traffic trough the internet gateway
+resource "aws_route" "public_internet" {
+  # use our dedicated public route table
+  route_table_id = aws_route_table.public.id
+
+  # match all ipv4 destinations
+  destination_cidr_block = "0.0.0.0/0" # Matches every IPv4 destination. This is the default route.
+
+  # send matching traffc to our internet gateway
+  gateway_id = aws_internet_gateway.main.id # Identifies the Internet Gateway that receives the traffic.
+}
+
+
+
