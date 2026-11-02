@@ -13,3 +13,10 @@ variable "vpc_cidr" {
         error_message = "The VPC CIDR value must contain a valid block"
     }
 }
+
+# control wether the envronment deploys the NAT gateway
+variable "enable_nat_gateway" {
+    description = "whether to deploy the NAT gateway for private subnet outbound connectivity"
+    type = bool
+    default = false
+}

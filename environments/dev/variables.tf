@@ -29,3 +29,9 @@ variable "vpc_cidr" {
   type        = string
   default     = "10.0.0.0/16"
 }
+
+variable "enable_nat_gateway" {
+  description = "Wether to deploy a NAT gateway for private subnet outbound connectivity"
+  type        = bool
+  default     = false
+}
