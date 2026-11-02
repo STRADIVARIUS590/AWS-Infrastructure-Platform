@@ -1,0 +1,12 @@
+
+
+# Why a separate database subnet?
+# We're separating application workloads from database workloads.
+
+# Our intended architecture:
+# - Public subnets: Load balancers and internet-facing resources.
+# - Private subnets: Backend applications.
+# - Database subnets: RDS and other database resources.
+
+
+The first database subnet is associated with the dedicated database route table; the second database subnet still uses the VPC main route table. Associating the second subnet is a remaining step for consistent database routing across both Availability Zones. Route-table separation alone does not prevent access from other VPC subnets; security groups and network ACLs will be needed to enforce that boundary.
