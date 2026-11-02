@@ -2,11 +2,11 @@
 
 ## Alcance
 
-Este documento describe la configuración Terraform del entorno `dev` y el módulo de red que este instancia. La infraestructura definida actualmente es una base de red; no declara balanceadores de carga, instancias, servicios de aplicación, bases de datos, grupos de seguridad ni endpoints. El módulo incluye recursos opcionales para un NAT Gateway, deshabilitados por defecto.
+Este documento describe la configuración Terraform del entorno `dev` y los módulos que instancia: `networking` y `security`. La infraestructura incluye una VPC con seis subredes, tablas de rutas, grupos de seguridad y un NAT Gateway opcional, deshabilitado por defecto. No declara un Application Load Balancer (ALB), instancias, servicios de aplicación, bases de datos ni endpoints: los grupos de seguridad definen reglas para esos componentes, pero no los crean.
 
 ## Componentes de Terraform
 
-El entorno raíz configura el proveedor y sus datos de contexto, y llama al módulo `networking`. El módulo usa `vpc_cidr` para crear la red y expone outputs que el entorno raíz vuelve a publicar.
+El entorno raíz configura el proveedor y sus datos de contexto, y llama a los módulos `networking` y `security`. El módulo de red usa `vpc_cidr` para crear la VPC y expone outputs que el entorno raíz vuelve a publicar. El módulo de seguridad recibe el ID de esa VPC y crea grupos para el ALB, la aplicación y la base de datos.
 
 ```mermaid
 flowchart LR
@@ -15,7 +15,7 @@ flowchart LR
         Provider["providers.tf<br/>proveedor AWS y default_tags"]
         Locals["locals.tf<br/>common_tags y name_prefix"]
         Data["data.tf<br/>identidad, región y AZ disponibles"]
-        Main["main.tf<br/>module networking"]
+        Main["main.tf<br/>module networking y security"]
         RootOutputs["outputs.tf<br/>outputs del entorno"]
 
         Vars -->|"configura"| Provider
@@ -23,7 +23,7 @@ flowchart LR
         Locals -->|"common_tags"| Provider
         Data -->|"valores consultados"| RootOutputs
         Locals -->|"common_tags"| RootOutputs
-        Main -->|"outputs del módulo"| RootOutputs
+        Main -->|"outputs de networking"| RootOutputs
     end
 
     subgraph Child["Módulo reutilizable: modules/networking"]
@@ -49,6 +49,22 @@ flowchart LR
     Vars -->|"controla NAT (default: false)"| Main
     Provider -.->|"configuración AWS heredada"| ModuleInstance
     ModuleOutputs -->|"vpc_id, vpc_cidr_block,<br/>main_route_table_id"| RootOutputs
+
+    subgraph Security["Módulo reutilizable: modules/security"]
+        SecurityInstance["Instancia module.security"]
+        SecurityVars["variables.tf<br/>vpc_id, application_port<br/>y database_port"]
+        SecurityGroups["main.tf<br/>Security Groups ALB,<br/>aplicación y base de datos"]
+        SecurityOutputs["outputs.tf<br/>IDs de los tres grupos"]
+
+        SecurityInstance -->|"entrada del módulo"| SecurityVars
+        SecurityVars -->|"VPC y puertos"| SecurityGroups
+        SecurityGroups -->|"IDs"| SecurityOutputs
+    end
+
+    Main -->|"source: ../../modules/security"| SecurityInstance
+    Main -->|"vpc_id = module.networking.vpc_id"| SecurityVars
+    ModuleOutputs -->|"vpc_id"| SecurityVars
+    Provider -.->|"configuración AWS heredada"| SecurityInstance
 ```
 
 ## Arquitectura AWS
@@ -67,6 +83,9 @@ flowchart TB
     NatRoute["Ruta privada 0.0.0.0/0<br/>solo si enable_nat_gateway = true"]
     NatGW["NAT Gateway opcional<br/>en public-a"]
     NatEIP["Elastic IP opcional"]
+    AlbSG["Security Group ALB<br/>ingreso TCP 80/443 desde 0.0.0.0/0"]
+    AppSG["Security Group aplicación<br/>ingreso TCP 8080 desde el grupo ALB"]
+    DatabaseSG["Security Group base de datos<br/>ingreso TCP 5432 desde el grupo aplicación"]
 
     subgraph AZA["us-east-2a"]
         PubA["Subred pública A<br/>10.0.1.0/24"]
@@ -93,6 +112,9 @@ flowchart TB
     VPC -->|"asociada a la VPC"| PublicRT
     VPC -->|"asociada a la VPC"| PrivateRT
     VPC -->|"asociada a la VPC"| DatabaseRT
+    VPC -->|"vpc_id"| AlbSG
+    VPC -->|"vpc_id"| AppSG
+    VPC -->|"vpc_id"| DatabaseSG
     PublicRT -->|"incluye"| DefaultRoute
     DefaultRoute -->|"destino"| IGW
     PublicRT -.->|"asociación public_a"| PubA
@@ -106,10 +128,13 @@ flowchart TB
     IGW -.->|"prerrequisito"| NatGW
     PrivateRT -.->|"ruta condicional"| NatRoute
     NatRoute -.->|"destino"| NatGW
+    AlbSG -.->|"egreso TCP 8080"| AppSG
+    AppSG -.->|"egreso permitido; ingreso TCP 5432"| DatabaseSG
 ```
 
 Ambas asociaciones públicas están declaradas en `subnets.tf` y utilizan los IDs de las subredes correspondientes. La tabla pública envía la ruta predeterminada al Internet Gateway.
 Los componentes NAT del diagrama son condicionales: solo se crean cuando `enable_nat_gateway = true`.
+Las relaciones entre Security Groups representan reglas de filtrado, no recursos de aplicación desplegados: todavía no hay un ALB, instancias ni una base de datos asociados a ellos.
 
 ## Recursos y relaciones
 
@@ -129,6 +154,18 @@ Los componentes NAT del diagrama son condicionales: solo se crean cuando `enable
 | Subredes privadas A y B | `10.0.11.0/24` en `us-east-2a`; `10.0.12.0/24` en `us-east-2b`; asignación automática de IP pública deshabilitada | Segmentos previstos para cargas de aplicación. Ambas usan la tabla privada; obtienen salida a través del NAT Gateway solo si se habilita la variable correspondiente. |
 | Subredes de base de datos A y B | `10.0.21.0/24` en `us-east-2a`; `10.0.22.0/24` en `us-east-2b`; asignación automática de IP pública deshabilitada | Segmentos previstos para datos. Ambas están asociadas a la tabla de base de datos. No se declaran recursos de base de datos. |
 
+## Grupos de seguridad
+
+El módulo `security` crea tres Security Groups dentro de la VPC. Las reglas usan referencias entre grupos para limitar el tráfico entre capas; crear estas reglas no crea ni asocia un ALB, servidores o una base de datos.
+
+| Grupo | Ingreso permitido | Egreso configurado |
+|---|---|---|
+| `aws_security_group.alb` | TCP 80 y 443 desde `0.0.0.0/0` | TCP en `application_port` hacia el Security Group de aplicación |
+| `aws_security_group.application` | TCP en `application_port` desde el Security Group del ALB | Cualquier protocolo y destino IPv4 (`0.0.0.0/0`) |
+| `aws_security_group.database` | TCP en `database_port` desde el Security Group de aplicación | Ninguno declarado; las respuestas al tráfico permitido se admiten por el carácter stateful de los Security Groups de AWS |
+
+Los valores predeterminados del módulo son `application_port = 8080` y `database_port = 5432` (PostgreSQL). El módulo exporta los IDs de los tres grupos, pero `environments/dev/outputs.tf` todavía no los vuelve a publicar como outputs del entorno.
+
 Las subredes se crean con `cidrsubnet(var.vpc_cidr, 8, índice)`, por lo que sus rangos se derivan del CIDR configurable de la VPC. Los rangos de la tabla corresponden al valor predeterminado `10.0.0.0/16`.
 
 ## Flujo de tráfico
@@ -141,14 +178,16 @@ Las subredes se crean con `cidrsubnet(var.vpc_cidr, 8, índice)`, por lo que sus
 
 ## Módulo y entorno
 
-- `environments/dev` configura el proveedor AWS para `us-east-2` y el perfil CLI `aws-real` por defecto, y llama a `modules/networking` con `vpc_cidr`.
+- `environments/dev` configura el proveedor AWS para `us-east-2` y el perfil CLI `aws-real` por defecto, llama a `modules/networking` con `vpc_cidr` y a `modules/security` con el ID de la VPC creada por networking.
 - El módulo de red exporta el ID de la VPC, su CIDR y el ID de la tabla de rutas principal. El entorno vuelve a exponer esos valores.
+- El módulo de seguridad recibe `vpc_id` y define `application_port` (8080) y `database_port` (5432) con valores predeterminados; el entorno no los sobrescribe.
 - El entorno también consulta la identidad de la cuenta, la región efectiva y las zonas de disponibilidad disponibles, y expone esas consultas como outputs.
 - Las etiquetas comunes del entorno son `Project`, `Environment` y `ManagedBy`. Los recursos de red también definen etiquetas propias, incluyendo `Name` y `Tier`.
 - El módulo valida que `vpc_cidr` sea un bloque CIDR IPv4 válido. Los valores del entorno se definen en `environments/dev/variables.tf`.
-- Los valores predeterminados son región `us-east-2`, perfil `aws-real`, entorno `dev`, proyecto `aws-infraestructure-platform`, CIDR `10.0.0.0/16` y `enable_nat_gateway = false`.
+- Los valores predeterminados son región `us-east-2`, perfil `aws-real`, entorno `dev`, proyecto `aws-infrastructure-platform`, CIDR `10.0.0.0/16` y `enable_nat_gateway = false`. `environments/dev/terraform.tfvars` también establece `enable_nat_gateway = false`.
 - `enable_nat_gateway` se pasa del entorno al módulo y controla la creación del NAT Gateway, la Elastic IP y la ruta para la tabla privada. Activarlo puede generar cargos adicionales de AWS.
 - Las zonas de disponibilidad de las subredes están fijadas en el módulo a `us-east-2a` y `us-east-2b`; cambiar la región del proveedor requiere revisar esas zonas.
+- `modules/load-balancer` es actualmente un directorio vacío, no contiene recursos o variables Terraform y no se instancia desde el entorno.
 
 ## Archivos de referencia
 
@@ -156,6 +195,9 @@ Las subredes se crean con `cidrsubnet(var.vpc_cidr, 8, índice)`, por lo que sus
 - [Proveedor AWS](../environments/dev/providers.tf): versión de Terraform/proveedor, región y perfil.
 - [Variables](../environments/dev/variables.tf): parámetros configurables del entorno.
 - [Módulo de red](../modules/networking/main.tf): VPC, Internet Gateway y tablas de rutas pública, privada y de base de datos.
+- [Módulo de seguridad](../modules/security/main.tf): Security Groups y reglas de ingreso y egreso para ALB, aplicación y base de datos.
+- [Variables de seguridad](../modules/security/variables.tf): VPC y puertos configurables del módulo de seguridad.
+- [Outputs de seguridad](../modules/security/outputs.tf): IDs de los Security Groups.
 - [NAT Gateway](../modules/networking/nat.tf): Elastic IP, NAT Gateway y ruta de salida condicional para subredes privadas.
 - [Subredes](../modules/networking/subnets.tf): rangos, zonas de disponibilidad y asociaciones de las subredes públicas, privadas y de base de datos a sus tablas de rutas.
 - [Consideraciones de diseño](./design_considerations.txt): propósito previsto de las capas de subredes.
