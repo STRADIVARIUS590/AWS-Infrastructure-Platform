@@ -19,7 +19,7 @@ variable "envionment" {
 variable "project_name" {
   description = "Project identifier"
   type        = string
-  default     = "aws-infraestructure-platform"
+  default     = "aws-infrastructure-platform"
 }
 
 

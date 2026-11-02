@@ -1,57 +1,57 @@
 # create the first úblic subnet iside our VPC
 
 resource "aws_subnet" "public_a" {
-    # associate the subnet with our existing VPC
-    # terraform automantically infers the dependency 
-    vpc_id = aws_vpc.main.id #  We're referencing the VPC created in main.tf.
+  # associate the subnet with our existing VPC
+  # terraform automantically infers the dependency 
+  vpc_id = aws_vpc.main.id #  We're referencing the VPC created in main.tf.
 
 
-    # calculate the subnet CIDR from the VPC's CIDR
-    # 16 + 8 additional bits = /24
-    # the index 1 generates  10.0.1.0/24
-    cidr_block = cidrsubnet(var.vpc_cidr, 8, 1)
-    
-    # place this subnet in the fist availability zone
-    availability_zone = "us-east-2a"
+  # calculate the subnet CIDR from the VPC's CIDR
+  # 16 + 8 additional bits = /24
+  # the index 1 generates  10.0.1.0/24
+  cidr_block = cidrsubnet(var.vpc_cidr, 8, 1)
 
-    # automatically assign public IPv4 address to
-    # network interface launched in this subnet
-    map_public_ip_on_launch = true
+  # place this subnet in the fist availability zone
+  availability_zone = "us-east-2a"
 
-    # identify the subnet in AWS 
-    tags = {
-        Name = "aws-infrastructure-platform-public-dev-a"
-        Environment = "dev"
-        ManagedBy = "Terraform"
-        Tier = "public"
-    }
+  # automatically assign public IPv4 address to
+  # network interface launched in this subnet
+  map_public_ip_on_launch = true
+
+  # identify the subnet in AWS 
+  tags = {
+    Name        = "aws-infrastructure-platform-public-dev-a"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+    Tier        = "public"
+  }
 }
 
 
 
 # create the second public subnet in a different AZ 
 resource "aws_subnet" "public_b" {
-    # associante our subnet with our sxisting VPC
-    vpc_id = aws_vpc.main.id 
+  # associante our subnet with our sxisting VPC
+  vpc_id = aws_vpc.main.id
 
-    # generate the second /24 subnet from our VPC CIDR
-    # the index 2 produces 10.0.2.0/24
-    cidr_block = cidrsubnet(var.vpc_cidr, 8, 2)
+  # generate the second /24 subnet from our VPC CIDR
+  # the index 2 produces 10.0.2.0/24
+  cidr_block = cidrsubnet(var.vpc_cidr, 8, 2)
 
-    # place this subnet in the second AZ
-    availability_zone = "us-east-2b"
+  # place this subnet in the second AZ
+  availability_zone = "us-east-2b"
 
-    # automatically assigns a public IPv4 address to 
-    # eligible network interfaces launched in this subnet
-    map_public_ip_on_launch = true
+  # automatically assigns a public IPv4 address to 
+  # eligible network interfaces launched in this subnet
+  map_public_ip_on_launch = true
 
-    tags = {
-        Name = "aws-infrastructure-platform-public-dev-b"
-        Environment = "dev"
-        ManagedBy = "Terraform"
-        Tier = "public"
-    
-    }
+  tags = {
+    Name        = "aws-infrastructure-platform-public-dev-b"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+    Tier        = "public"
+
+  }
 }
 
 
@@ -61,26 +61,26 @@ resource "aws_subnet" "public_b" {
 
 # create our first private subnet for backend workloads
 resource "aws_subnet" "private_a" {
-    vpc_id = aws_vpc.main.id
+  vpc_id = aws_vpc.main.id
 
-    # generate the 10.0.11.0/24 cidr block
-    cidr_block = cidrsubnet(var.vpc_cidr, 8, 11)
+  # generate the 10.0.11.0/24 cidr block
+  cidr_block = cidrsubnet(var.vpc_cidr, 8, 11)
 
-    # place the subnet in the first availability zone
-    availability_zone = "us-east-2a"
+  # place the subnet in the first availability zone
+  availability_zone = "us-east-2a"
 
-    #  do not automatically assign the public IPv4 address
-    
-    map_public_ip_on_launch = false # this doesn't, by itself, make a subnet private. We'll establish its private status through routing configuration later.
+  #  do not automatically assign the public IPv4 address
 
-    # identify this subnet as private
+  map_public_ip_on_launch = false # this doesn't, by itself, make a subnet private. We'll establish its private status through routing configuration later.
 
-    tags = {
-        Name = "aws-infrastructure-platform-private-dev-a"
-        Environment = "dev"
-        ManagedBy = "Terraform"
-        Tier = "private"
-    }
+  # identify this subnet as private
+
+  tags = {
+    Name        = "aws-infrastructure-platform-private-dev-a"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+    Tier        = "private"
+  }
 }
 
 # Create the second private subnet in Availability Zone B.
@@ -97,34 +97,34 @@ resource "aws_subnet" "private_b" {
   # Do not automatically assign public IPv4 addresses.
   map_public_ip_on_launch = false
 
-    tags = {
-        Name        = "aws-infrastructure-platform-private-dev-b"
-        Environment = "dev"
-        ManagedBy   = "Terraform"
-        Tier        = "private"
-    }
+  tags = {
+    Name        = "aws-infrastructure-platform-private-dev-b"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+    Tier        = "private"
+  }
 }
 
 
 ###########DATABASE SUBNETS###############
 # create the first database subnet in Availability zone A
 resource "aws_subnet" "database_a" {
-    vpc_id = aws_vpc.main.id
+  vpc_id = aws_vpc.main.id
 
-    # generate 10.0.21.0/24 from the VPC CIDR
-    cidr_block = cidrsubnet(var.vpc_cidr, 8, 21)
+  # generate 10.0.21.0/24 from the VPC CIDR
+  cidr_block = cidrsubnet(var.vpc_cidr, 8, 21)
 
-    # place the subnet in the first availability zone
-    availability_zone = "us-east-2a"
+  # place the subnet in the first availability zone
+  availability_zone = "us-east-2a"
 
-    map_public_ip_on_launch = false
+  map_public_ip_on_launch = false
 
-      # Identify this subnet as part of the database tier.
-    tags = {
-        Name        = "aws-infrastructure-platform-database-dev-a"
-        Environment = "dev"
-        ManagedBy   = "Terraform"
-        Tier        = "database"
+  # Identify this subnet as part of the database tier.
+  tags = {
+    Name        = "aws-infrastructure-platform-database-dev-a"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+    Tier        = "database"
   }
 }
 
@@ -154,60 +154,60 @@ resource "aws_subnet" "database_b" {
 
 # associate the public A with the public route table
 resource "aws_route_table_association" "public_a" {
-    # identify the subnet to assiciate
-    subnet_id = aws_subnet.public_a.id
+  # identify the subnet to assiciate
+  subnet_id = aws_subnet.public_a.id
 
-    # assign the public route table to this subnet
-    route_table_id = aws_route_table.public.id
+  # assign the public route table to this subnet
+  route_table_id = aws_route_table.public.id
 }
 
 # assiciate the public B with the public route table
 resource "aws_route_table_association" "public_b" {
-    # identify the second public subnet 
-    subnet_id = aws_subnet.public_b.id
+  # identify the second public subnet 
+  subnet_id = aws_subnet.public_b.id
 
-    # assigne the same public route as public A
-    route_table_id = aws_route_table.public.id
+  # assigne the same public route as public A
+  route_table_id = aws_route_table.public.id
 }
 
 
 # associate private A with the private route table
 resource "aws_route_table_association" "private_a" {
 
-    # identify the first private subnet
-    subnet_id = aws_subnet.private_a.id
+  # identify the first private subnet
+  subnet_id = aws_subnet.private_a.id
 
-    # assign the dedicated private route table
-    route_table_id = aws_route_table.private.id
+  # assign the dedicated private route table
+  route_table_id = aws_route_table.private.id
 }
 
 # associate provate B with the private route table
 resource "aws_route_table_association" "private_b" {
 
-    # identify the second private subnet 
-    subnet_id = aws_subnet.private_b.id
+  # identify the second private subnet 
+  subnet_id = aws_subnet.private_b.id
 
-    # assign the dedicated private route table
-    route_table_id = aws_route_table.private.id
+  # assign the dedicated private route table
+  route_table_id = aws_route_table.private.id
 
 }
 # Associate Database A with Database route table
 resource "aws_route_table_association" "database_a" {
-    # identify the first database subnet
-    subnet_id = aws_subnet.database_a.id
+  # identify the first database subnet
+  subnet_id = aws_subnet.database_a.id
 
-    # assign the dedicated databas route table
-    route_table_id = aws_route_table.database.id
+  # assign the dedicated databas route table
+  route_table_id = aws_route_table.database.id
 }
 
 
 # associate database B with the database route table
 resource "aws_route_table_association" "database_b" {
-    
-    # odentify the second database subnet
-    subnet_id = aws_subnet.database_b.id
 
-    # Assigne the dedicated database route table
-    route_table_id = aws_route_table.database.id
+  # odentify the second database subnet
+  subnet_id = aws_subnet.database_b.id
+
+  # Assigne the dedicated database route table
+  route_table_id = aws_route_table.database.id
 }
 

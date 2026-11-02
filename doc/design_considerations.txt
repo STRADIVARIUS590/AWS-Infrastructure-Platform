@@ -10,3 +10,12 @@
 
 
 The first database subnet is associated with the dedicated database route table; the second database subnet still uses the VPC main route table. Associating the second subnet is a remaining step for consistent database routing across both Availability Zones. Route-table separation alone does not prevent access from other VPC subnets; security groups and network ACLs will be needed to enforce that boundary.
+
+
+
+Crearemos inicialmente tres SGs:
+1. alb: recibe conexiones HTTP/HTTPS desde Internet.
+2. application: recibe conexiones únicamente desde el Security Group del ALB.
+3. database: recibe conexiones únicamente desde el Security Group de aplicación.
+
+Una decisión arquitectónica importante: utilizaremos referencias entre Security Groups en lugar de permitir rangos IP completos entre las capas. Esto hace que las reglas sean más específicas y mantenibles.

@@ -28,7 +28,7 @@ resource "aws_internet_gateway" "main" {
   # terrafor infers the dependency from the reference
   vpc_id = aws_vpc.main.id
 
-   # Identify this resource in AWS.
+  # Identify this resource in AWS.
   tags = {
     Name        = "aws-infrastructure-platform-dev-igw"
     Environment = "dev"
@@ -49,10 +49,10 @@ resource "aws_route_table" "public" {
 
   # identify this route table in aws
   tags = {
-    Name = "aws-infrastructure-platform-public-dev-rt"
+    Name        = "aws-infrastructure-platform-public-dev-rt"
     Environment = "dev"
-    ManagedBy = "Terraform"
-    Tier = "public"
+    ManagedBy   = "Terraform"
+    Tier        = "public"
   }
 }
 
@@ -102,7 +102,7 @@ resource "aws_route_table" "database" {
   vpc_id = aws_vpc.main.id
 
   # identify this route table in AWS
-  
+
   tags = {
     Name        = "aws-infrastructure-platform-database-dev-rt"
     Environment = "dev"
