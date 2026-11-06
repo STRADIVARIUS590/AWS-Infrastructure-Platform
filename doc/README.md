@@ -2,11 +2,11 @@
 
 ## Alcance
 
-Este documento describe la configuración Terraform del entorno `dev` y los módulos que instancia: `networking` y `security`. La infraestructura incluye una VPC con seis subredes, tablas de rutas, grupos de seguridad y un NAT Gateway opcional, deshabilitado por defecto. No declara un Application Load Balancer (ALB), instancias, servicios de aplicación, bases de datos ni endpoints: los grupos de seguridad definen reglas para esos componentes, pero no los crean.
+Este documento describe la configuración Terraform del entorno `dev` y los módulos que instancia: `networking`, `security` y `load_balancer`. La infraestructura incluye una VPC con seis subredes, tablas de rutas, grupos de seguridad, un Application Load Balancer (ALB) público y un NAT Gateway opcional, deshabilitado por defecto. El ALB está desplegado en las dos subredes públicas y asociado al grupo de seguridad del ALB. Todavía no se declaran listeners, grupos de destino, instancias, servicios de aplicación ni bases de datos.
 
 ## Componentes de Terraform
 
-El entorno raíz configura el proveedor y sus datos de contexto, y llama a los módulos `networking` y `security`. El módulo de red usa `vpc_cidr` para crear la VPC y expone outputs que el entorno raíz vuelve a publicar. El módulo de seguridad recibe el ID de esa VPC y crea grupos para el ALB, la aplicación y la base de datos.
+El entorno raíz configura el proveedor y sus datos de contexto, y llama a los módulos `networking`, `security` y `load_balancer`. El módulo de red usa `vpc_cidr` para crear la VPC y expone outputs que el entorno raíz vuelve a publicar. El módulo de seguridad recibe el ID de esa VPC y crea grupos para el ALB, la aplicación y la base de datos. El módulo de balanceador crea un ALB de aplicación público en las dos subredes públicas y asocia el grupo de seguridad del ALB.
 
 ```mermaid
 flowchart LR
@@ -15,7 +15,7 @@ flowchart LR
         Provider["providers.tf<br/>proveedor AWS y default_tags"]
         Locals["locals.tf<br/>common_tags y name_prefix"]
         Data["data.tf<br/>identidad, región y AZ disponibles"]
-        Main["main.tf<br/>module networking y security"]
+        Main["main.tf<br/>module networking,<br/>security y load_balancer"]
         RootOutputs["outputs.tf<br/>outputs del entorno"]
 
         Vars -->|"configura"| Provider
@@ -32,7 +32,7 @@ flowchart LR
         Network["main.tf<br/>VPC, Internet Gateway,<br/>tablas pública, privada<br/>y de base de datos"]
         Subnets["subnets.tf<br/>6 subredes; asociaciones<br/>públicas, privadas y de base de datos"]
         Nat["nat.tf<br/>EIP, NAT Gateway<br/>y ruta privada condicional"]
-        ModuleOutputs["outputs.tf<br/>ID, CIDR y tabla principal"]
+        ModuleOutputs["outputs.tf<br/>ID, CIDR, tabla principal<br/>e IDs de subredes públicas"]
 
         ModuleInstance -->|"entrada del módulo"| ModuleVars
         ModuleVars -->|"CIDR"| Network
@@ -65,6 +65,20 @@ flowchart LR
     Main -->|"vpc_id = module.networking.vpc_id"| SecurityVars
     ModuleOutputs -->|"vpc_id"| SecurityVars
     Provider -.->|"configuración AWS heredada"| SecurityInstance
+
+    subgraph LoadBalancer["Módulo reutilizable: modules/load-balancer"]
+        LoadBalancerInstance["Instancia module.load_balancer"]
+        LoadBalancerVars["varaibles.tf<br/>vpc_id, IDs de subredes públicas<br/>y del Security Group ALB"]
+        LoadBalancerResource["main.tf<br/>aws_lb.main<br/>ALB de aplicación público"]
+
+        LoadBalancerInstance -->|"entrada del módulo"| LoadBalancerVars
+        LoadBalancerVars -->|"subredes y grupo de seguridad"| LoadBalancerResource
+    end
+
+    Main -->|"source: ../../modules/load-balancer"| LoadBalancerInstance
+    ModuleOutputs -->|"IDs de subredes públicas"| LoadBalancerVars
+    SecurityOutputs -->|"alb_security_group_id"| LoadBalancerVars
+    Provider -.->|"configuración AWS heredada"| LoadBalancerInstance
 ```
 
 ## Arquitectura AWS
@@ -86,6 +100,7 @@ flowchart TB
     AlbSG["Security Group ALB<br/>ingreso TCP 80/443 desde 0.0.0.0/0"]
     AppSG["Security Group aplicación<br/>ingreso TCP 8080 desde el grupo ALB"]
     DatabaseSG["Security Group base de datos<br/>ingreso TCP 5432 desde el grupo aplicación"]
+    ALB["ALB de aplicación aip-dev-alb<br/>internet-facing; sin listeners ni targets"]
 
     subgraph AZA["us-east-2a"]
         PubA["Subred pública A<br/>10.0.1.0/24"]
@@ -115,6 +130,7 @@ flowchart TB
     VPC -->|"vpc_id"| AlbSG
     VPC -->|"vpc_id"| AppSG
     VPC -->|"vpc_id"| DatabaseSG
+    Dev -->|"instancia"| ALB
     PublicRT -->|"incluye"| DefaultRoute
     DefaultRoute -->|"destino"| IGW
     PublicRT -.->|"asociación public_a"| PubA
@@ -128,13 +144,16 @@ flowchart TB
     IGW -.->|"prerrequisito"| NatGW
     PrivateRT -.->|"ruta condicional"| NatRoute
     NatRoute -.->|"destino"| NatGW
+    ALB -->|"asociado a"| AlbSG
+    ALB -->|"desplegado en"| PubA
+    ALB -->|"desplegado en"| PubB
     AlbSG -.->|"egreso TCP 8080"| AppSG
     AppSG -.->|"egreso permitido; ingreso TCP 5432"| DatabaseSG
 ```
 
 Ambas asociaciones públicas están declaradas en `subnets.tf` y utilizan los IDs de las subredes correspondientes. La tabla pública envía la ruta predeterminada al Internet Gateway.
 Los componentes NAT del diagrama son condicionales: solo se crean cuando `enable_nat_gateway = true`.
-Las relaciones entre Security Groups representan reglas de filtrado, no recursos de aplicación desplegados: todavía no hay un ALB, instancias ni una base de datos asociados a ellos.
+El ALB se crea y asocia al Security Group correspondiente, pero todavía no tiene listeners ni grupos de destino configurados. Las instancias y la base de datos tampoco están desplegadas; las reglas de sus Security Groups solo definen el filtrado previsto para esas capas.
 
 ## Recursos y relaciones
 
@@ -150,13 +169,14 @@ Las relaciones entre Security Groups representan reglas de filtrado, no recursos
 | Elastic IP `aws_eip.nat` | Un recurso condicional; `domain = "vpc"` | Se reserva para el NAT Gateway cuando `enable_nat_gateway = true`. |
 | NAT Gateway `aws_nat_gateway.main` | Un recurso condicional ubicado en `public-a`; depende del Internet Gateway | Usa la Elastic IP y permite que las subredes privadas inicien conexiones hacia destinos externos, sin asignarles direcciones públicas. No acepta conexiones entrantes no solicitadas desde Internet. |
 | Ruta `aws_route.private_nat` | Destino `0.0.0.0/0` en `aws_route_table.private`; condicional | Cuando se habilita el NAT Gateway, envía el tráfico saliente de ambas subredes privadas hacia ese gateway. No cambia la tabla de rutas de base de datos. |
+| ALB `aws_lb.main` | Application Load Balancer público `aip-dev-alb`, `internal = false`, etiqueta `Environment = "dev"` | Usa `public-a` y `public-b` y el Security Group del ALB. No tiene listeners ni grupos de destino, por lo que aún no enruta solicitudes a servicios backend. |
 | Subredes públicas A y B | `10.0.1.0/24` en `us-east-2a`; `10.0.2.0/24` en `us-east-2b`; asignación automática de IP pública habilitada | Asociadas a la tabla pública, que enruta `0.0.0.0/0` al Internet Gateway. Segmentos previstos para recursos públicos, como balanceadores. |
 | Subredes privadas A y B | `10.0.11.0/24` en `us-east-2a`; `10.0.12.0/24` en `us-east-2b`; asignación automática de IP pública deshabilitada | Segmentos previstos para cargas de aplicación. Ambas usan la tabla privada; obtienen salida a través del NAT Gateway solo si se habilita la variable correspondiente. |
 | Subredes de base de datos A y B | `10.0.21.0/24` en `us-east-2a`; `10.0.22.0/24` en `us-east-2b`; asignación automática de IP pública deshabilitada | Segmentos previstos para datos. Ambas están asociadas a la tabla de base de datos. No se declaran recursos de base de datos. |
 
 ## Grupos de seguridad
 
-El módulo `security` crea tres Security Groups dentro de la VPC. Las reglas usan referencias entre grupos para limitar el tráfico entre capas; crear estas reglas no crea ni asocia un ALB, servidores o una base de datos.
+El módulo `security` crea tres Security Groups dentro de la VPC. El módulo `load-balancer` asocia el del ALB al balanceador; los grupos de aplicación y base de datos solo definen reglas y todavía no están asociados a cargas desplegadas.
 
 | Grupo | Ingreso permitido | Egreso configurado |
 |---|---|---|
@@ -175,19 +195,22 @@ Las subredes se crean con `cidrsubnet(var.vpc_cidr, 8, índice)`, por lo que sus
 3. La tabla `aws_route_table.public` incluye `0.0.0.0/0` hacia el Internet Gateway y está asociada a `public-a` y `public-b`. Esas subredes también habilitan la asignación automática de direcciones IPv4 públicas.
 4. `private-a` y `private-b` están asociadas a `aws_route_table.private`. Si `enable_nat_gateway = false` (valor predeterminado), la tabla no tiene ruta de salida a Internet aparte de la ruta local implícita. Si se establece en `true`, se crean una Elastic IP, un NAT Gateway en `public-a` y una ruta `0.0.0.0/0` desde la tabla privada al NAT Gateway. Las subredes de base de datos usan una tabla separada sin una ruta NAT.
 5. La asignación automática de IP pública no crea rutas; el acceso a Internet de las subredes públicas depende de la asociación con la tabla que enruta al Internet Gateway.
+6. El ALB público se despliega en ambas subredes públicas y usa el Security Group del ALB, que permite ingreso TCP 80/443 desde `0.0.0.0/0`. Al no existir listeners ni grupos de destino, el balanceador aún no enruta solicitudes a una aplicación.
 
 ## Módulo y entorno
 
-- `environments/dev` configura el proveedor AWS para `us-east-2` y el perfil CLI `aws-real` por defecto, llama a `modules/networking` con `vpc_cidr` y a `modules/security` con el ID de la VPC creada por networking.
-- El módulo de red exporta el ID de la VPC, su CIDR y el ID de la tabla de rutas principal. El entorno vuelve a exponer esos valores.
+- `environments/dev` configura el proveedor AWS para `us-east-2` y el perfil CLI `aws-real` por defecto; llama a `modules/networking`, `modules/security` y `modules/load-balancer`.
+- El módulo de red exporta el ID de la VPC, su CIDR, el ID de la tabla de rutas principal y los IDs de las dos subredes públicas. El entorno vuelve a exponer la VPC, su CIDR y la tabla principal; el módulo de balanceador consume los IDs de subred directamente.
 - El módulo de seguridad recibe `vpc_id` y define `application_port` (8080) y `database_port` (5432) con valores predeterminados; el entorno no los sobrescribe.
+- El módulo de balanceador recibe `vpc_id`, los IDs de ambas subredes públicas y `alb_security_group_id`; crea un ALB de aplicación internet-facing llamado `aip-dev-alb`. Aunque el módulo recibe `vpc_id`, la definición del ALB usa las subredes y el Security Group para determinar la VPC.
+- El ALB no tiene listeners, grupos de destino ni targets; aún no puede dirigir tráfico a una aplicación. El módulo tampoco exporta outputs propios.
 - El entorno también consulta la identidad de la cuenta, la región efectiva y las zonas de disponibilidad disponibles, y expone esas consultas como outputs.
 - Las etiquetas comunes del entorno son `Project`, `Environment` y `ManagedBy`. Los recursos de red también definen etiquetas propias, incluyendo `Name` y `Tier`.
 - El módulo valida que `vpc_cidr` sea un bloque CIDR IPv4 válido. Los valores del entorno se definen en `environments/dev/variables.tf`.
 - Los valores predeterminados son región `us-east-2`, perfil `aws-real`, entorno `dev`, proyecto `aws-infrastructure-platform`, CIDR `10.0.0.0/16` y `enable_nat_gateway = false`. `environments/dev/terraform.tfvars` también establece `enable_nat_gateway = false`.
 - `enable_nat_gateway` se pasa del entorno al módulo y controla la creación del NAT Gateway, la Elastic IP y la ruta para la tabla privada. Activarlo puede generar cargos adicionales de AWS.
 - Las zonas de disponibilidad de las subredes están fijadas en el módulo a `us-east-2a` y `us-east-2b`; cambiar la región del proveedor requiere revisar esas zonas.
-- `modules/load-balancer` es actualmente un directorio vacío, no contiene recursos o variables Terraform y no se instancia desde el entorno.
+- El módulo `load-balancer` crea el ALB, pero no configura listeners, grupos de destino ni servicios backend.
 
 ## Archivos de referencia
 
@@ -198,6 +221,9 @@ Las subredes se crean con `cidrsubnet(var.vpc_cidr, 8, índice)`, por lo que sus
 - [Módulo de seguridad](../modules/security/main.tf): Security Groups y reglas de ingreso y egreso para ALB, aplicación y base de datos.
 - [Variables de seguridad](../modules/security/variables.tf): VPC y puertos configurables del módulo de seguridad.
 - [Outputs de seguridad](../modules/security/outputs.tf): IDs de los Security Groups.
+- [Módulo de balanceador](../modules/load-balancer/main.tf): Application Load Balancer público asociado a las dos subredes públicas y al Security Group del ALB.
+- [Variables del balanceador](../modules/load-balancer/varaibles.tf): IDs de VPC, subredes públicas y Security Group requeridos por el módulo.
+- [Outputs de red](../modules/networking/outputs.tf): VPC, tabla de rutas principal e IDs de las subredes públicas.
 - [NAT Gateway](../modules/networking/nat.tf): Elastic IP, NAT Gateway y ruta de salida condicional para subredes privadas.
 - [Subredes](../modules/networking/subnets.tf): rangos, zonas de disponibilidad y asociaciones de las subredes públicas, privadas y de base de datos a sus tablas de rutas.
 - [Consideraciones de diseño](./design_considerations.txt): propósito previsto de las capas de subredes.
