@@ -16,3 +16,15 @@ output "main_route_table_id" {
   description = "ID od the main route table"
   value       = aws_vpc.main.main_route_table_id
 }
+
+# expose the first public subnet
+output "public_subnet_a_id" {
+  description = "ID of the first public subnet"
+  value       = aws_subnet.public_a.id
+}
+
+# expose the ID of the second public subnet
+output "public_subnet_b_id" {
+  description = "ID of the second public subnet"
+  value       = aws_subnet.public_b.id
+}
