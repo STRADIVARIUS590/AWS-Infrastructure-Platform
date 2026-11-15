@@ -1,7 +1,6 @@
 locals {
   project_name = var.project_name
-  environment  = var.envionment
-
+  environment  = var.environment
   common_tags = {
     Project     = local.project_name
     Environment = local.environment

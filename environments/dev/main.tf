@@ -29,3 +29,16 @@ module "load_balancer" {
   # security group delendencies
   alb_security_group_id = module.security.alb_security_group_id
 }
+
+module "iam" {
+  source = "../../modules/iam"
+
+  project_name = "aws-infrastructure-platform"
+  environment  = "dev"
+
+  tags = {
+    Project     = "aws-infrastructure-platform"
+    Environment = "dev"
+    ManagedBy   = "Terraform"
+  }
+}

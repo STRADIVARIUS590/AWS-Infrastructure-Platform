@@ -14,3 +14,49 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+
+
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Packer
+packer_cache/
+*.pkrvars.hcl
+*.pkrvars.json
+*.box
+
+# Ansible
+*.retry
+*.log
+
+# SSH keys and credentials
+*.pem
+*.key
+.aws/
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

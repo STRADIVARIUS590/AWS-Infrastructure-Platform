@@ -10,7 +10,7 @@ variable "aws_profile" {
   default     = "aws-real"
 }
 
-variable "envionment" {
+variable "environment" {
   description = "Deployment environment"
   type        = string
   default     = "dev"
