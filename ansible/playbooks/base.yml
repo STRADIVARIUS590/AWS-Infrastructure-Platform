@@ -1,0 +1,19 @@
+---
+- name: Configure Amazon Linux 2023 base image # Describe el playbook.
+  hosts: all # Aplica las tareas a todos los hosts del inventario. 
+  become: true  # Ejecuta las tareas con privilegios elevados, normalmente root.
+
+  tasks: # Define las operaciones que Ansible realizará.
+    - name: update installed Packages
+      ansible.builtin.dnf: # Administra paquetes en Amazon Linux.
+        name: "*" # Selecciona todos los paquetes.
+        state: latest # Solicita que estén actualizados a la última versión disponible.
+
+    - name: Install basic administrator tools
+      ansible.builtin.dnf:
+        name:
+          - git
+          - curl-minimal
+          - unzip
+        state: present
+
