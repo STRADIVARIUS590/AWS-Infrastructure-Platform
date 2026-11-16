@@ -28,3 +28,13 @@ output "public_subnet_b_id" {
   description = "ID of the second public subnet"
   value       = aws_subnet.public_b.id
 }
+
+output "private_subnet_a_id" {
+  description = "ID of the first private subnet"
+  value       = aws_subnet.private_a.id
+}
+
+output "private_subnet_b_id" {
+  description = "ID of the second private subnet"
+  value       = aws_subnet.private_b.id
+}
