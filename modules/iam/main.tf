@@ -29,3 +29,9 @@ resource "aws_iam_instance_profile" "ec2" {
   tags = var.tags
 }
 
+resource "aws_iam_role_policy_attachment" "ssm" {                     # conecta una política IAM con un rol.
+  role       = aws_iam_role.ec2.name                                  # indica qué rol recibirá los permisos.
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore" # identifica la política administrada por AWS.
+
+  # AmazonSSMManagedInstanceCore permite que el agente SSM de la instancia se comunique con Systems Manager y registre la instancia como administrada.
+}
