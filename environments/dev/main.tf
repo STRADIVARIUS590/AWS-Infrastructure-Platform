@@ -42,3 +42,30 @@ module "iam" {
     ManagedBy   = "Terraform"
   }
 }
+
+module "compute" {
+  source = "../../modules/compute"
+  
+  project_name = var.project_name
+  environment = var.environment
+  ami_id = var.ami_id
+  instance_type = var.instance_type
+  
+  subnet_ids = [
+    module.networking.private_subnet_a_id,
+    module.networking.private_subnet_b_id
+  ]
+
+  security_group_ids = [
+    module.security.application_security_group_id
+  ]
+
+  instance_profile_name = module.iam.ec2_instance_profile_name
+  target_group_arn = module.load_balancer.target_group_arn
+
+  tags = {
+    Project = var.project_name
+    Environment = var.environment
+    ManagedBy = "Terraform"
+  }
+}

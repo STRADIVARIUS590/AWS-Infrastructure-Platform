@@ -35,3 +35,14 @@ variable "enable_nat_gateway" {
   type        = bool
   default     = false
 }
+
+variable "ami_id" {
+  description = "Golden AMI ID built by Packer"
+  type = string
+}
+
+variable "instance_type" {
+  description = "EC2 instance type"
+  type = string
+  default = "t3.micro"
+}
